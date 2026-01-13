@@ -1,78 +1,81 @@
-%% Main Script Execution
-clear; clc;
+clc; 
+clear;
 
-% 1. Define the equation f(a) = 0
-% We use an anonymous function handle for f(a) = cosh(100/a) - 11
-func = @(a) cosh(100./a) - 11;
+% 1. Define the function using an anonymous handle
+% We use element-wise division (./) just in case a vector is passed, 
+% though bisection uses scalars.
+f = @(a) cosh(100./a) - 11;
 
-% 2. Define input parameters
-lower_bound = 20;
-upper_bound = 50;
-tolerance = 1e-4; % Stopping criteria
+% 2. Define interval and tolerance
+a_init = 20;
+b_init = 50;
+tolerance = 1e-4;
 
-fprintf('--- Bisection Method Assignment ---\n\n');
+fprintf('Bisection Method Calculation:\n');
+fprintf('Solving f(a) = cosh(100/a) - 11 = 0\n');
+fprintf('Interval: [%d, %d], Tolerance: %.1e\n\n', a_init, b_init, tolerance);
 
-% 3. Call the local function defined at the bottom of this file
-[root, error, iterations] = bisection(func, lower_bound, upper_bound, tolerance);
+% 3. Call the bisection function
+% The function handles the printing of the first 3 iterations internally
+[root, error, iterations] = bisection(f, a_init, b_init, tolerance);
 
-% 4. Print the final results
-fprintf('----------------------------------------------------------------------\n');
-fprintf('\nFinal Solution:\n');
-fprintf('Root found (xst)   = %.6f\n', root);
-fprintf('Relative Error     = %.6e %%\n', error);
-fprintf('Total Iterations   = %d\n', iterations);
+% 4. Print the final solution
+fprintf('\n--------------------------------------------------\n');
+fprintf('Final Solution found after %d iterations:\n', iterations);
+fprintf('Root (xst)       = %.8f\n', root);
+fprintf('Final Error (erra) = %.8f\n', error);
+fprintf('--------------------------------------------------\n');
 
 
-%% Local Function Definition
-% This function must be placed at the end of the file.
-
-function [xst, erra, iter] = bisection(func, xl, xu, tol)
-    % Check for valid interval (Sign change)
-    if func(xl) * func(xu) >= 0
-        error('Error: f(a) and f(b) must have opposite signs. Invalid interval.');
+% =========================================================================
+% Local Function: Bisection Method
+% (Must be placed at the end of the file)
+% =========================================================================
+function [xst, erra, iter] = bisection(func, a, b, tol)
+    % BISECTION Finds the root of a function within interval [a, b]
+    % Inputs:
+    %   func - function handle to solve
+    %   a, b - interval limits
+    %   tol  - error tolerance
+    
+    % Check if interval is valid (sign change check)
+    if func(a) * func(b) >= 0
+        error('The function must have opposite signs at the interval endpoints [a, b].');
     end
 
-    iter = 0;
-    xm_old = xl; 
-    erra = 100; % Initialize error > tol to ensure loop starts
+    xst = a;        % Initialize current root guess
+    erra = 1.0;     % Initialize error (greater than tol to start loop)
+    iter = 0;       % Iteration counter
 
-    % Print Table Header
-    fprintf('First 3 Iterations:\n');
-    fprintf('%-5s | %-12s | %-12s | %-12s | %-12s\n', 'Iter', 'Lower (a)', 'Upper (b)', 'Root Est', 'Error (%)');
-    fprintf('----------------------------------------------------------------------\n');
+    fprintf('Iteration Log (First 3 Only):\n');
+    fprintf('Iter |      a      |      b      |     xst     |    erra\n');
+    fprintf('-----|-------------|-------------|-------------|-------------\n');
 
-    % Main Bisection Loop
     while erra > tol
+        xold = xst;          % Store previous guess
+        xst = (a + b) / 2;   % Calculate midpoint
         iter = iter + 1;
         
-        % Calculate midpoint
-        xm = (xl + xu) / 2;
-        
-        % Calculate Error
-        if iter == 1
-            erra = 100; % No error calculation for first step
-        else
-            erra = abs((xm - xm_old) / xm) * 100;
+        % Calculate Approximate Relative Error (skip for very first guess)
+        if xst ~= 0
+            erra = abs((xst - xold) / xst);
         end
         
-        % Print first 3 iterations as requested
+        % PRINT constraint: Print result of the first 3 iterations
         if iter <= 3
-            fprintf('%-5d | %-12.6f | %-12.6f | %-12.6f | %-12.6f\n', iter, xl, xu, xm, erra);
+            fprintf('  %d  |  %9.5f  |  %9.5f  |  %9.5f  |  %.5e\n', ...
+                    iter, a, b, xst, erra);
         end
         
-        % Determine which subinterval contains the root
-        test = func(xl) * func(xm);
+        % Determine which sub-interval to keep
+        test = func(a) * func(xst);
         
         if test < 0
-            xu = xm; % Root is in the lower half
+            b = xst; % Root is in the left half
         elseif test > 0
-            xl = xm; % Root is in the upper half
+            a = xst; % Root is in the right half
         else
-            erra = 0; % Found exact root
+            erra = 0; % Exact match found
         end
-        
-        xm_old = xm;
     end
-    
-    xst = xm;
 end
