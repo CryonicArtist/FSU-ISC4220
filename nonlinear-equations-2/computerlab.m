@@ -1,124 +1,204 @@
-function lab2_solution()
-    
-    clc; close all;
-    format long;
+%% Newton's Method Analysis Script
+% This script implements Newton's method for n-th root finding and compares
+% two formulations for finding the root of tan(x) = x near 4.5.
+clear; clc; close all;
+format long;
 
-    % --- PART 1: Nth Root Finder ---
-    fprintf('PART 1: Nth Root Finder Results\n');
-    fprintf('-------------------------------\n');
-    solve_nth_root(3, 2); % sqrt(3)
-    solve_nth_root(7, 5); % 7^(1/5)
+%% Part 1: N-th Root Finder
+% We solve x^n - A = 0 using Newton's method.
+% Update rule: x_{k+1} = x_k - (x_k^n - A) / (n * x_k^(n-1))
 
-    % --- PART 2: Newton-Raphson for h(x) = tan(x) - x ---
-    fprintf('\nPART 2: Newton-Raphson Analysis\n');
-    x_true = 4.493409457909064175;
+disp('--------------------------------------------------');
+disp('Part 1: N-th Root Finder Results');
+disp('--------------------------------------------------');
+
+% 1a. Calculate cubic root of 3 (n=3, A=3)
+n1 = 3; A1 = 3;
+x0_1 = 1.5; % Initial guess
+root1 = nth_root_newton(n1, A1, x0_1);
+fprintf('Cubic root of 3:   %.15f (MATLAB Ref: %.15f)\n', root1, 3^(1/3));
+
+% 1b. Calculate 5th root of 7 (n=5, A=7)
+n2 = 5; A2 = 7;
+x0_2 = 1.5; % Initial guess
+root2 = nth_root_newton(n2, A2, x0_2);
+fprintf('5th root of 7:     %.15f (MATLAB Ref: %.15f)\n', root2, 7^(1/5));
+fprintf('\n');
+
+%% Part 2: Root of h(x) = tan(x) - x
+% Target root near 4.5.
+% h'(x) = sec^2(x) - 1 = tan^2(x)
+% h''(x) = 2*tan(x)*sec^2(x)
+
+disp('--------------------------------------------------');
+disp('Part 2: Solving h(x) = tan(x) - x');
+disp('--------------------------------------------------');
+
+% Define functions
+h = @(x) tan(x) - x;
+dh = @(x) tan(x).^2;
+ddh = @(x) 2 * tan(x) .* (sec(x).^2);
+
+% Find exact root for error calculation using fzero (high precision built-in)
+x_star = fzero(h, 4.5);
+fprintf('Reference Root x*: %.15f\n', x_star);
+
+% Calculate Theoretical Prefactor M = |h''(x*) / 2h'(x*)|
+M_h = abs(ddh(x_star) / (2 * dh(x_star)));
+fprintf('Theoretical Prefactor M (h(x)): %.15f\n', M_h);
+
+% Run iterations for different starting points
+start_points = [4.2, 4.7];
+colors = {'b', 'r'};
+markers = {'-o', '-s'};
+
+figure('Name', 'Convergence Analysis: h(x) = tan(x) - x');
+
+for i = 1:length(start_points)
+    x0 = start_points(i);
+    [roots, iters] = newton_solver_history(h, dh, x0, 1e-12, 20);
     
-    % 2(b) Perform 5 iterations with x0 = 4.2
-    fprintf('\n2(b) Iterations for h(x) with x0 = 4.2:\n');
-    x_curr = 4.2; 
-    fprintf('Iter |      x_i       |      f(x)      |      Step\n');
-    fprintf('-----|----------------|----------------|----------------\n');
-    fprintf('  0  | %.12f | %.4e |      --     \n', x_curr, tan(x_curr)-x_curr);
+    % Calculate errors
+    errors = abs(roots - x_star);
+    % Remove zero errors for log plotting
+    valid_mask = errors > 0;
+    errors = errors(valid_mask);
+    iter_indices = 0:(length(errors)-1);
     
-    for i = 1:5
-        fx = tan(x_curr) - x_curr;
-        dfx = (tan(x_curr))^2; % h'(x)
-        step = fx / dfx;
-        x_new = x_curr - step;
-        fprintf('  %d  | %.12f | %.4e | %.4e\n', i, x_new, tan(x_new)-x_new, step);
-        x_curr = x_new;
+    % Calculate Error Ratio: e_{k+1} / e_k^2
+    if length(errors) > 1
+        ratios = errors(2:end) ./ (errors(1:end-1).^2);
+    else
+        ratios = [];
     end
-
-    % 2(c) Perform 9 iterations with x0 = 4.7
-    x_curr = 4.7; 
-    errors_h = zeros(9, 1);
     
-    for i = 1:9
-        fx = tan(x_curr) - x_curr;
-        dfx = (tan(x_curr))^2;
-        x_new = x_curr - fx/dfx;
-        errors_h(i) = abs(x_curr - x_true); 
-        x_curr = x_new;
+    % Plot Convergence Error
+    subplot(2, 1, 1);
+    semilogy(iter_indices, errors, markers{i}, 'DisplayName', sprintf('x_0 = %.1f', x0));
+    hold on; grid on;
+    title('Convergence Error |x_k - x^*| for h(x)');
+    xlabel('Iteration k'); ylabel('Error');
+    legend('Location', 'ne');
+    
+    % Plot Error Ratio
+    subplot(2, 1, 2);
+    if ~isempty(ratios)
+        plot(iter_indices(1:end-1), ratios, markers{i}, 'DisplayName', sprintf('x_0 = %.1f', x0));
     end
-    
-    % Plot 2(c)
-    figure(1);
-    semilogy(1:9, errors_h, '-o', 'LineWidth', 2);
-    title('2(c) Convergence of h(x) = tan(x)-x');
-    xlabel('Iteration Number');
-    ylabel('Absolute Error |x_i - x^*|');
-    grid on;
-
-    % 2(d) Prefactor Analysis
-    h_prime = (tan(x_true))^2;
-    h_double_prime = 2 * tan(x_true) * (sec(x_true))^2;
-    prefactor_h = abs(h_double_prime / (2 * h_prime)); 
-    
-    fprintf('\n2(d) Calculated Prefactor for h(x): %.5f\n', prefactor_h);
-    
-    % Calculate Ratios E_{i+1}/E_i
-    ratios_h = zeros(8, 1);
-    for i = 1:8
-        if errors_h(i) > 0
-            ratios_h(i) = errors_h(i+1) / errors_h(i);
-        end
-    end
-    
-    % Plot 2(d)
-    figure(2);
-    plot(1:8, ratios_h, '-s', 'LineWidth', 2);
-    title('2(d) Ratio E_{i+1}/E_i for h(x)');
-    xlabel('Iteration Number');
-    ylabel('Ratio E_{i+1} / E_i');
-    grid on;
-
-    % --- PART 2(e): Newton-Raphson for g(x) = x*cos(x) - sin(x) ---
-    fprintf('\n2(e) Iterations for g(x) with x0 = 4.2:\n');
-    x_curr = 4.2; 
-    errors_g = zeros(5, 1);
-    
-    for i = 1:5
-        gx = x_curr * cos(x_curr) - sin(x_curr);
-        dgx = -x_curr * sin(x_curr); % g'(x)
-        x_new = x_curr - gx/dgx;
-        errors_g(i) = abs(x_curr - x_true);
-        x_curr = x_new;
-    end
-
-    % Plot 2(e)
-    figure(3);
-    semilogy(1:5, errors_g, '-d', 'LineWidth', 2, 'Color', 'r');
-    title('2(e) Convergence of g(x) = x cos(x) - sin(x)');
-    xlabel('Iteration Number');
-    ylabel('Absolute Error |x_i - x^*|');
-    grid on;
-
-    % 2(f) Prefactor Comparison
-    g_prime = -x_true * sin(x_true);
-    g_double_prime = -(sin(x_true) + x_true * cos(x_true));
-    prefactor_g = abs(g_double_prime / (2 * g_prime)); 
-    
-    fprintf('\n2(f) Calculated Prefactor for g(x): %.5f\n', prefactor_g);
+    hold on; grid on;
+    title('Error Ratio e_{k+1} / e_k^2');
+    xlabel('Iteration k'); ylabel('Ratio');
+    legend('Location', 'ne');
 end
 
-function solve_nth_root(a, n)
-    tol = 1e-4;
+% Add theoretical line to ratio plot
+yline(M_h, '--k', 'Theoretical M', 'LineWidth', 1.5);
+fprintf('\n');
+
+%% Part 3: Root of g(x) = x*cos(x) - sin(x)
+% Alternative formulation for the same root.
+% g'(x) = cos(x) - sin(x) - x*sin(x) - cos(x) = -x*sin(x)
+% g''(x) = -sin(x) - x*cos(x)
+
+disp('--------------------------------------------------');
+disp('Part 3: Solving g(x) = x*cos(x) - sin(x)');
+disp('--------------------------------------------------');
+
+g = @(x) x.*cos(x) - sin(x);
+dg = @(x) -x.*sin(x);
+ddg = @(x) -sin(x) - x.*cos(x);
+
+% Calculate Theoretical Prefactor M = |g''(x*) / 2g'(x*)|
+M_g = abs(ddg(x_star) / (2 * dg(x_star)));
+fprintf('Theoretical Prefactor M (g(x)): %.15f\n', M_g);
+
+figure('Name', 'Convergence Analysis: g(x) = x*cos(x) - sin(x)');
+
+for i = 1:length(start_points)
+    x0 = start_points(i);
+    [roots, iters] = newton_solver_history(g, dg, x0, 1e-12, 20);
+    
+    % Calculate errors
+    errors = abs(roots - x_star);
+    valid_mask = errors > 0;
+    errors = errors(valid_mask);
+    iter_indices = 0:(length(errors)-1);
+    
+    % Calculate Error Ratio
+    if length(errors) > 1
+        ratios = errors(2:end) ./ (errors(1:end-1).^2);
+    else
+        ratios = [];
+    end
+    
+    % Plot Convergence
+    subplot(2, 1, 1);
+    semilogy(iter_indices, errors, markers{i}, 'DisplayName', sprintf('x_0 = %.1f', x0));
+    hold on; grid on;
+    title('Convergence Error |x_k - x^*| for g(x)');
+    xlabel('Iteration k'); ylabel('Error');
+    legend('Location', 'ne');
+    
+    % Plot Ratio
+    subplot(2, 1, 2);
+    if ~isempty(ratios)
+        plot(iter_indices(1:end-1), ratios, markers{i}, 'DisplayName', sprintf('x_0 = %.1f', x0));
+    end
+    hold on; grid on;
+    title('Error Ratio e_{k+1} / e_k^2');
+    xlabel('Iteration k'); ylabel('Ratio');
+    legend('Location', 'ne');
+end
+
+% Add theoretical line
+yline(M_g, '--k', 'Theoretical M', 'LineWidth', 1.5);
+
+%% Local Functions
+
+function x = nth_root_newton(n, A, x0)
+    % Solves x^n - A = 0
+    % Using simplified Newton step: x_new = ((n-1)*x + A/x^(n-1)) / n
+    x = x0;
+    tol = 1e-12;
     max_iter = 100;
-    x_curr = a / 2;
-    if x_curr < 1, x_curr = 1.5; end
     
     for k = 1:max_iter
-        fx = x_curr^n - a;
-        dfx = n * x_curr^(n-1);
-        x_new = x_curr - fx/dfx;
+        x_prev = x;
+        % Newton step for x^n - A
+        x = ((n - 1) * x + A / (x^(n - 1))) / n;
         
-        if x_new ~= 0, ea = abs(x_new - x_curr) / abs(x_new); else, ea = 0; end
-        
-        if ea <= tol
-            fprintf('  %d^(1/%d) = %.6f (Converged in %d iters)\n', a, n, x_new, k);
+        if abs(x - x_prev) < tol
             return;
         end
-        x_curr = x_new;
     end
-    fprintf('  Did not converge.\n');
+end
+
+function [x_history, k] = newton_solver_history(func, dfunc, x0, tol, max_iter)
+    % General Newton solver that returns the history of approximations
+    x_history = zeros(max_iter + 1, 1);
+    x_history(1) = x0;
+    x = x0;
+    k = 0;
+    
+    for iter = 1:max_iter
+        f_val = func(x);
+        df_val = dfunc(x);
+        
+        if df_val == 0
+            warning('Derivative is zero at x = %f', x);
+            break;
+        end
+        
+        x_new = x - f_val / df_val;
+        x_history(iter + 1) = x_new;
+        x = x_new;
+        k = k + 1;
+        
+        if abs(x_new - x_history(iter)) < tol
+            % Trim unused pre-allocated zeros
+            x_history = x_history(1:iter+1);
+            return;
+        end
+    end
+    x_history = x_history(1:k+1);
 end
